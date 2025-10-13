@@ -1,0 +1,16 @@
+# env / secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# local databases
+dev.db
+prisma/dev.db
+
+# next build/cache
+.next/
+out/
+node_modules/
+
+# prisma artifacts
+/src/generated/prisma

@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more at https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String?
+  createdAt DateTime @default(now())
+  leads     Lead[]
+  emails    Email[]  @relation("UserEmails")
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  company     String
+  contactName String?
+  email       String?
+  phone       String?
+  industry    String?
+  score       Int      @default(0)
+  stage       String   @default("New")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  emails      Email[]
+}
+
+model Email {
+  id      String  @id @default(cuid())
+  to      String
+  subject String
+  body    String
+  status  String  @default("generated") // generated | sent | failed
+  leadId  String?
+  lead    Lead?   @relation(fields: [leadId], references: [id])
+
+  userId String?
+  user   User?   @relation("UserEmails", fields: [userId], references: [id])
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+}
