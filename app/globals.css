@@ -1,0 +1,11 @@
+/* Basic global styles */ 
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+a { color: #0af; text-decoration: none; }
+button { cursor: pointer; }
+

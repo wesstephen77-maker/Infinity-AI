@@ -1,0 +1,53 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { PrismaClient } from "@prisma/client";
+import { generateEmail } from "../../../src/helpers/ai";
+
+const prisma = new PrismaClient();
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { id } = req.query;
+
+  try {
+    // GET a single email by ID
+    if (req.method === "GET") {
+      const email = await prisma.email.findUnique({
+        where: { id: Number(id) },
+        include: { lead: true, user: true },
+      });
+      return res.status(200).json(email);
+    }
+
+    // PUT / update an email and optionally regenerate body with AI
+    if (req.method === "PUT") {
+      const { to, subject, userId, leadId, leadName, context, regenerate } = req.body;
+
+      let body: string | undefined;
+
+      if (regenerate) {
+        // Generate new email body using AI
+        if (!leadName || !context) {
+          return res.status(400).json({ error: "Missing leadName or context for AI regeneration" });
+        }
+        body = await generateEmail(subject, leadName, context);
+      }
+
+      const updatedEmail = await prisma.email.update({
+        where: { id: Number(id) },
+        data: { to, subject, userId, leadId, ...(body ? { body } : {}) },
+      });
+
+      return res.status(200).json(updatedEmail);
+    }
+
+    // DELETE an email
+    if (req.method === "DELETE") {
+      await prisma.email.delete({ where: { id: Number(id) } });
+      return res.status(204).end();
+    }
+
+    return res.status(405).json({ message: "Method not allowed" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}

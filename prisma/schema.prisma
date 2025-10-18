@@ -1,53 +1,55 @@
-// This is your Prisma schema file,
-// learn more at https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // pooled for app
+  directUrl = env("DIRECT_URL")     // direct for migrations
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  source    String?
+}
+
+model Email {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  subject   String?
+  body      String?
+  createdAt DateTime @default(now())
+
+  // relations
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  // relations
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  emails    Email[]
 }
 
 model User {
   id        String   @id @default(cuid())
-  email     String?  @unique
-  name      String?
+  name      String
+  email     String   @unique
   createdAt DateTime @default(now())
+
+  // relations
   leads     Lead[]
-  emails    Email[]  @relation("UserEmails")
-}
-
-model Lead {
-  id          String   @id @default(cuid())
-  ownerId     String?
-  owner       User?    @relation(fields: [ownerId], references: [id])
-  company     String
-  contactName String?
-  email       String?
-  phone       String?
-  industry    String?
-  score       Int      @default(0)
-  stage       String   @default("New")
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  emails      Email[]
-}
-
-model Email {
-  id      String  @id @default(cuid())
-  to      String
-  subject String
-  body    String
-  status  String  @default("generated") // generated | sent | failed
-  leadId  String?
-  lead    Lead?   @relation(fields: [leadId], references: [id])
-
-  userId String?
-  user   User?   @relation("UserEmails", fields: [userId], references: [id])
-
-  createdAt DateTime  @default(now())
-  sentAt    DateTime?
+  emails    Email[]
 }
