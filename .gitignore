@@ -14,3 +14,9 @@ node_modules/
 
 # prisma artifacts
 /src/generated/prisma
+# secrets
+.env
+.env.*
+*.env
+sk-*
+start-infinity.sh
