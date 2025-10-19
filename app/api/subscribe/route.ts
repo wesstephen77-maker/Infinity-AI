@@ -2,19 +2,22 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { PrismaClient } from '@prisma/client';
-
-const FALLBACK_DB =
-  'postgresql://neondb_owner:npg_SxG4bnHBfM7t@ep-bitter-brook-addrpqq6-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&pgbouncer=true';
-
-// Prefer env if present; otherwise fallback so prod works even if env missing
-const effectiveDbUrl = process.env.DATABASE_URL!;
-
+import { Resend } from 'resend';
 
 const prisma = new PrismaClient({
-  datasources: {
-    db: { url: process.env.DATABASE_URL! },
-  },
+  datasources: { db: { url: process.env.DATABASE_URL! } },
 });
+
+// Lazy init Resend at request-time; skip email if env missing
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  try {
+    return new Resend(key);
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -27,25 +30,51 @@ export async function POST(req: Request) {
       });
     }
 
-    const subscriber = await prisma.subscriber.upsert({
-      where: { email },
-      update: {},
-      create: { email, source: typeof source === 'string' ? source : 'coming-soon' },
-    });
+    const existing = await prisma.subscriber.findUnique({ where: { email } });
 
-    return new Response(JSON.stringify({ ok: true, subscriber }), {
+    let subscriber;
+    if (existing) {
+      subscriber = existing;
+    } else {
+      subscriber = await prisma.subscriber.create({
+        data: { email, source: typeof source === 'string' ? source : 'coming-soon' },
+      });
+
+      // send email non-blocking if creds exist
+      const resend = getResend();
+      const FROM = process.env.RESEND_FROM;
+
+      if (resend && FROM) {
+        (async () => {
+          try {
+            await resend.emails.send({
+              from: FROM,
+              to: email,
+              subject: 'Thanks for subscribing to Infinity AI',
+              html: `
+                <div style="font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+                  <h2>You're on the list 🎉</h2>
+                  <p>Thanks for subscribing to <strong>Infinity AI</strong>. We'll keep you posted.</p>
+                  <p style="color:#666">If this wasn't you, you can ignore this email.</p>
+                </div>
+              `,
+            });
+          } catch {
+            // ignore email errors; do not fail the request
+          }
+        })();
+      }
+    }
+
+    return new Response(JSON.stringify({ ok: true, subscriber, already: !!existing }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: message,
-        sawEnv: !!process.env.DATABASE_URL,
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ ok: false, error: message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
