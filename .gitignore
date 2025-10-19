@@ -22,3 +22,4 @@ sk-*
 start-infinity.sh
 .vercel
 app/api/subscribe/route.backup.ts
+app/api/subscribe/route.backup.ts
