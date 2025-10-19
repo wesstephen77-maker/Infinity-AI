@@ -7,7 +7,8 @@ const FALLBACK_DB =
   'postgresql://neondb_owner:npg_SxG4bnHBfM7t@ep-bitter-brook-addrpqq6-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&pgbouncer=true';
 
 // Prefer env if present; otherwise fallback so prod works even if env missing
-const effectiveDbUrl = process.env.DATABASE_URL || FALLBACK_DB;
+const effectiveDbUrl = process.env.DATABASE_URL!;
+
 
 const prisma = new PrismaClient({
   datasources: {
