@@ -1,48 +1,49 @@
-// app/api/subscribe/route.ts
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-function normalizeEmail(v: unknown) {
-  return String(v || '').trim().toLowerCase();
-}
+import { PrismaClient } from '@prisma/client';
+
+const FALLBACK_DB =
+  'postgresql://neondb_owner:npg_SxG4bnHBfM7t@ep-bitter-brook-addrpqq6-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&pgbouncer=true';
+
+// Prefer env if present; otherwise use fallback so prod works even if env missing
+const effectiveDbUrl = process.env.DATABASE_URL || FALLBACK_DB;
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: { url: effectiveDbUrl },
+  },
+});
 
 export async function POST(req: Request) {
-  const ct = req.headers.get('content-type') || '';
-  let email = '';
-
   try {
-    if (ct.includes('application/json')) {
-      const body = await req.json();
-      email = normalizeEmail(body?.email);
-    } else if (ct.includes('multipart/form-data') || ct.includes('application/x-www-form-urlencoded')) {
-      const form = await req.formData();
-      email = normalizeEmail(form.get('email'));
-    } else {
-      try {
-        const body = await req.json();
-        email = normalizeEmail(body?.email);
-      } catch {
-        return NextResponse.json({ error: 'Unsupported Content-Type' }, { status: 415 });
-      }
-    }
+    const { email, source } = await req.json();
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+    if (!email) {
+      return new Response(JSON.stringify({ ok: false, error: 'Email required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const subscriber = await prisma.subscriber.upsert({
       where: { email },
       update: {},
-      create: { email },
+      create: { email, source: source ?? 'coming-soon' },
     });
 
-    return NextResponse.json({ ok: true, subscriber }, { status: 201 });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return new Response(JSON.stringify({ ok: true, subscriber }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: String(e?.message || e),
+        sawEnv: !!process.env.DATABASE_URL,
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
-}
-
-export function GET() {
-  return NextResponse.json({ error: 'Method Not Allowed' }, { status: 405 });
 }
